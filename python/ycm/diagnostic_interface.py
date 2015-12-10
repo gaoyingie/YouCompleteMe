@@ -44,6 +44,14 @@ class DiagnosticInterface( object ):
         self._EchoDiagnosticForLine( line )
 
 
+  def GetErrorCount( self ):
+    return len( self._FilterDiagnostics( _DiagnosticIsError ) )
+
+
+  def GetWarningCount( self ):
+    return len( self._FilterDiagnostics( _DiagnosticIsWarning ) )
+
+
   def UpdateWithNewDiagnostics( self, diags ):
     normalized_diags = [ _NormalizeDiagnostic( x ) for x in diags ]
     self._buffer_number_to_line_to_diags = _ConvertDiagListToDict(
@@ -62,7 +70,6 @@ class DiagnosticInterface( object ):
       vimsupport.SetLocationList(
         vimsupport.ConvertDiagnosticsToQfList( normalized_diags ) )
 
-
   def _EchoDiagnosticForLine( self, line_num ):
     buffer_num = vim.current.buffer.number
     diags = self._buffer_number_to_line_to_diags[ buffer_num ][ line_num ]
@@ -72,8 +79,23 @@ class DiagnosticInterface( object ):
         vimsupport.EchoText( '', False )
         self._diag_message_needs_clearing = False
       return
-    vimsupport.EchoTextVimWidth( diags[ 0 ][ 'text' ] )
+
+    text = diags[ 0 ][ 'text' ]
+    if diags[ 0 ].get( 'fixit_available', False ):
+      text += ' (FixIt)'
+
+    vimsupport.EchoTextVimWidth( text )
     self._diag_message_needs_clearing = True
+
+
+  def _FilterDiagnostics( self, predicate ):
+    matched_diags = []
+    line_to_diags = self._buffer_number_to_line_to_diags[
+      vim.current.buffer.number ]
+
+    for diags in line_to_diags.itervalues():
+      matched_diags.extend( filter( predicate, diags ) )
+    return matched_diags
 
 
 def _UpdateSquiggles( buffer_number_to_line_to_diags ):
@@ -204,6 +226,10 @@ def _ConvertDiagListToDict( diag_list ):
 
 def _DiagnosticIsError( diag ):
   return diag[ 'kind' ] == 'ERROR'
+
+
+def _DiagnosticIsWarning( diag ):
+  return diag[ 'kind' ] == 'WARNING'
 
 
 def _NormalizeDiagnostic( diag ):
